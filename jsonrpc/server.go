@@ -279,7 +279,7 @@ func handlePotentialHealthCheck(req *http.Request) (newReq *http.Request, err er
 	if req.URL.Path == "/health" {
 		newReq, err = http.NewRequest(http.MethodPost, "/health", strings.NewReader(fmt.Sprintf("[%s,%s]", gasPriceCall, blockNumberCall)))
 	}
-	if err != nil {
+	if err != nil || newReq == nil {
 		return
 	}
 	newReq.Header.Set("Content-Type", "application/json")
