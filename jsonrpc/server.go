@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"strings"
 	"syscall"
 	"time"
 
@@ -219,11 +220,16 @@ func (s *Server) handle(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if req.Method == http.MethodGet {
-		_, err := w.Write([]byte("zkEVM JSON RPC Server"))
-		if err != nil {
-			log.Error(err)
+		symReq, err := handlePotentialHealthCheck(req)
+		if err != nil || symReq == nil {
+			_, err := w.Write([]byte("zkEVM JSON RPC Server"))
+			if err != nil {
+				log.Error(err)
+			}
+			return
 		}
-		return
+		log.Debug("running health check request", "path", req.URL.Path)
+		req = symReq
 	}
 
 	if code, err := validateRequest(req); err != nil {
@@ -255,6 +261,18 @@ func (s *Server) handle(w http.ResponseWriter, req *http.Request) {
 	}
 	metrics.RequestDuration(start)
 	s.combinedLog(req, start, http.StatusOK, respLen)
+}
+
+func handlePotentialHealthCheck(req *http.Request) (*http.Request, error) {
+	// check the gas price since that would require a call to `pool.gas_price`
+	if req.URL.Path == "/health/pool" {
+		return http.NewRequest(http.MethodGet, "/health/pool", strings.NewReader(`{"jsonrpc":"2.0", "id": 1, "method": "eth_gasPrice", "params": []}`))
+	}
+	// check the block number in order to make sure that txMan is not block and we can access the state db
+	if req.URL.Path == "/health/state" {
+		return http.NewRequest(http.MethodGet, "/health/state", strings.NewReader(`{"jsonrpc":"2.0", "id": 1, "method": "eth_blockNumber", "params": []}`))
+	}
+	return nil, nil
 }
 
 // validateRequest returns a non-zero response code and error message if the
