@@ -263,16 +263,27 @@ func (s *Server) handle(w http.ResponseWriter, req *http.Request) {
 	s.combinedLog(req, start, http.StatusOK, respLen)
 }
 
-func handlePotentialHealthCheck(req *http.Request) (*http.Request, error) {
+func handlePotentialHealthCheck(req *http.Request) (newReq *http.Request, err error) {
+	gasPriceCall := `{"jsonrpc":"2.0", "id": 1, "method": "eth_gasPrice", "params": []}`
+	blockNumberCall := `{"jsonrpc":"2.0", "id": 2, "method": "eth_blockNumber", "params": []}`
+
 	// check the gas price since that would require a call to `pool.gas_price`
 	if req.URL.Path == "/health/pool" {
-		return http.NewRequest(http.MethodGet, "/health/pool", strings.NewReader(`{"jsonrpc":"2.0", "id": 1, "method": "eth_gasPrice", "params": []}`))
+		newReq, err = http.NewRequest(http.MethodPost, "/health/pool", strings.NewReader(gasPriceCall))
 	}
 	// check the block number in order to make sure that txMan is not block and we can access the state db
 	if req.URL.Path == "/health/state" {
-		return http.NewRequest(http.MethodGet, "/health/state", strings.NewReader(`{"jsonrpc":"2.0", "id": 1, "method": "eth_blockNumber", "params": []}`))
+		newReq, err = http.NewRequest(http.MethodPost, "/health/state", strings.NewReader(blockNumberCall))
 	}
-	return nil, nil
+	// check both the subsystems
+	if req.URL.Path == "/health" {
+		newReq, err = http.NewRequest(http.MethodPost, "/health", strings.NewReader(fmt.Sprintf("[%s,%s]", gasPriceCall, blockNumberCall)))
+	}
+	if err != nil {
+		return
+	}
+	newReq.Header.Set("Content-Type", "application/json")
+	return
 }
 
 // validateRequest returns a non-zero response code and error message if the
