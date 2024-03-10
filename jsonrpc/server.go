@@ -263,6 +263,8 @@ func (s *Server) handle(w http.ResponseWriter, req *http.Request) {
 	s.combinedLog(req, start, http.StatusOK, respLen)
 }
 
+// handlePotentialHealthCheck will examine a request and if the URL matches a path like /health, we'll return a faux
+// jsonrpc request that can be used to probe the underlying systems and understand if the application is live.
 func handlePotentialHealthCheck(req *http.Request) (newReq *http.Request, err error) {
 	gasPriceCall := `{"jsonrpc":"2.0", "id": 1, "method": "eth_gasPrice", "params": []}`
 	blockNumberCall := `{"jsonrpc":"2.0", "id": 2, "method": "eth_blockNumber", "params": []}`
@@ -271,7 +273,7 @@ func handlePotentialHealthCheck(req *http.Request) (newReq *http.Request, err er
 	if req.URL.Path == "/health/pool" {
 		newReq, err = http.NewRequest(http.MethodPost, "/health/pool", strings.NewReader(gasPriceCall))
 	}
-	// check the block number in order to make sure that txMan is not block and we can access the state db
+	// check the block number in order to make sure that txMan is not blocked and we can access the state db
 	if req.URL.Path == "/health/state" {
 		newReq, err = http.NewRequest(http.MethodPost, "/health/state", strings.NewReader(blockNumberCall))
 	}
